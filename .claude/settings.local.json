@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c ' *)",
+      "Bash(pip install *)",
+      "Bash(python3 -m venv .venv)",
+      "Bash(.venv/bin/pip install *)",
+      "Bash(.venv/bin/python -c ' *)",
+      "Bash(rm -rf /home/akbarryan/Zidan-Projects/UAS/venv)"
+    ],
+    "additionalDirectories": [
+      "/home/akbarryan/Zidan-Projects/UAS/venv"
+    ]
+  }
+}

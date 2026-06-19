@@ -1,0 +1,56 @@
+project:
+  name: "Analisis dan Visualisasi Kimia Air Panas Bumi"
+
+input:
+  file_path: "data/raw/Kimia Air_Tugas 1.xlsx"
+  sheet_name: "Air"
+  # Baris 0 = judul, baris 2 = satuan — keduanya dilewati saat membaca
+  skip_rows: [0, 2]
+
+output:
+  processed_directory: "data/processed"
+  interim_directory: "data/interim"
+  figures_directory: "outputs/figures"
+  reports_directory: "outputs/reports"
+
+cleaning:
+  missing_markers:
+    - ""
+    - "-"
+    - "—"
+    - "NA"
+    - "N/A"
+    - "null"
+    - "None"
+  detection_limit_strategy: "half"
+  remove_exact_duplicates: true
+  convert_negative_concentration_to_nan: true
+
+ph_classification:
+  acidic_max: 6.5
+  neutral_max: 7.5
+
+fluid_classification:
+  mixed_threshold: 10.0
+  minimum_valid_ions: 2
+
+visualization:
+  dpi: 300
+  figure_width: 10
+  figure_height: 6
+  show_sample_labels: true
+
+geothermometry:
+  # Geotermometer yang diaktifkan
+  silica:
+    enabled: true
+    # quartz berlaku > 150 °C, chalcedony untuk 25-180 °C
+  nk:
+    enabled: true
+    # Na/K berlaku untuk fluida reservoir matang
+  kmg:
+    enabled: true
+    # K/Mg sensitif terhadap keseimbangan suhu rendah
+  note: >
+    Semua hasil geotermometer bersifat indikatif.
+    Interpretasi akhir memerlukan pengetahuan geologi dan kondisi lapangan.
