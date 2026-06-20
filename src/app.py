@@ -21,7 +21,7 @@ INTERIM_DIR = ROOT_DIR / "data" / "interim"
 FIGURES_DIR = ROOT_DIR / "outputs" / "figures"
 REPORTS_DIR = ROOT_DIR / "outputs" / "reports"
 
-FIGURE_GROUPS = {
+KIMIA_AIR_FIGURE_GROUPS = {
     "Parameter Utama": [
         "ph_by_sample.png",
         "tds_by_sample.png",
@@ -33,16 +33,33 @@ FIGURE_GROUPS = {
         "major_ion_comparison.png",
         "major_ion_normalized.png",
     ],
-    "Diagram Geokimia": [
-        "giggenbach_ternary_ka.png",
-        "piper_ka.png",
-        "nakamg_ternary_ka.png",
-        "giggenbach_ternary_ib.png",
-        "piper_ib.png",
-        "nakamg_ternary_ib.png",
-    ],
-    "Geotermometer": ["geothermometer_summary.png"],
 }
+
+ION_BALANCE_FIGURE_GROUPS: dict[str, list[str]] = {}
+
+POWELL_CHARTS = (
+    "iso",
+    "xclhdisch",
+    "xclhqtz",
+    "xmckn",
+    "xkmc",
+    "xkms",
+    "tnkm",
+    "txyz",
+    "tcfb",
+    "tlrc",
+    "tclb",
+    "tcsh",
+    "piper",
+    "map",
+)
+
+KIMIA_AIR_FIGURE_GROUPS["Diagram Powell-Cumming"] = [
+    f"powell_kimia_air_{chart}.png" for chart in POWELL_CHARTS
+]
+ION_BALANCE_FIGURE_GROUPS["Diagram Powell-Cumming"] = [
+    f"powell_ion_balance_{chart}.png" for chart in POWELL_CHARTS
+]
 
 
 def _read_csv(filename: str) -> pd.DataFrame | None:
@@ -105,7 +122,11 @@ def _show_metrics(analysis_df: pd.DataFrame) -> None:
         )
 
 
-def _show_overview(analysis_df: pd.DataFrame) -> None:
+def _show_overview(
+    analysis_df: pd.DataFrame,
+    dataset_name: str,
+    quality_filename: str,
+) -> None:
     """Bangun panel ringkasan dua kolom seperti dashboard kerja."""
     left_column, right_column = st.columns([2.15, 1], gap="large")
     fluid_counts = (
@@ -143,7 +164,7 @@ def _show_overview(analysis_df: pd.DataFrame) -> None:
     with right_column:
         with st.container(border=True):
             st.caption("DATASET AKTIF")
-            st.subheader("Kimia Air Panas Bumi")
+            st.subheader(dataset_name)
             st.write("Gunakan panel di kiri untuk meninjau karakter fluida dari setiap lokasi.")
             st.divider()
             st.write(f"**{len(analysis_df)}** sampel ditampilkan")
@@ -154,18 +175,18 @@ def _show_overview(analysis_df: pd.DataFrame) -> None:
             st.caption("STATUS ANALISIS")
             st.subheader("Output Siap Ditinjau")
             st.write("Tabel detail, grafik geokimia, dan file CSV tersedia pada tab di bawah.")
-            st.caption("Pilih tab Grafik untuk membuka visualisasi lengkap.")
+            st.caption("Pilih menu Workspace untuk membuka detail analisis.")
 
-    quality_path = INTERIM_DIR / "quality_report.csv"
+    quality_path = INTERIM_DIR / quality_filename
     if quality_path.exists():
         quality_df = pd.read_csv(quality_path)
         with st.expander(f"Catatan pembersihan data ({len(quality_df)})"):
             st.dataframe(quality_df, width="stretch", hide_index=True)
 
 
-def _show_figures() -> None:
+def _show_figures(figure_groups: dict[str, list[str]]) -> None:
     """Tampilkan grafik pipeline per kelompok agar halaman tetap mudah dibaca."""
-    for group_name, filenames in FIGURE_GROUPS.items():
+    for group_name, filenames in figure_groups.items():
         available = [FIGURES_DIR / filename for filename in filenames if (FIGURES_DIR / filename).exists()]
         if not available:
             continue
@@ -235,6 +256,47 @@ def main() -> None:
             color: #ffffff;
             font-weight: 600;
         }
+        [data-testid="stSidebar"] [data-testid="stRadio"] {
+            width: 100%;
+        }
+        [data-testid="stSidebar"] [data-testid="stRadio"] [role="radiogroup"] {
+            align-items: stretch !important;
+            display: flex;
+            gap: .35rem;
+            width: 100%;
+        }
+        [data-testid="stSidebar"] [data-testid="stRadio"] [data-baseweb="radio"] {
+            align-items: center;
+            border-radius: 10px;
+            box-sizing: border-box;
+            color: #50625e;
+            display: flex !important;
+            font-size: .9rem;
+            font-weight: 500;
+            height: 2.65rem;
+            margin: 0;
+            margin-right: 0 !important;
+            padding: 0 .8rem;
+            text-align: left;
+            width: 100% !important;
+        }
+        [data-testid="stSidebar"] [data-testid="stRadio"] [data-baseweb="radio"] > div:first-child {
+            display: none;
+        }
+        [data-testid="stSidebar"] [data-testid="stRadio"] [data-baseweb="radio"] > div:last-child {
+            flex: 1;
+        }
+        [data-testid="stSidebar"] [data-testid="stRadio"] [data-baseweb="radio"] p {
+            margin: 0 !important;
+            text-align: left !important;
+        }
+        [data-testid="stSidebar"] [data-testid="stRadio"] [data-baseweb="radio"]:has(input:checked) {
+            background: #8195f7;
+            color: #ffffff !important;
+        }
+        [data-testid="stSidebar"] [data-testid="stRadio"] [data-baseweb="radio"]:not(:has(input:checked)):hover {
+            background: #eef3ee;
+        }
         .dashboard-title h1 { margin-bottom: 0; letter-spacing: -.055em; }
         .dashboard-title p { color: #85928f !important; margin-top: .15rem; }
         .profile-chip {
@@ -290,15 +352,20 @@ def main() -> None:
         """,
         unsafe_allow_html=True,
     )
+    workspace_items = ("Dashboard", "Data Sampel", "Geokimia", "Laporan")
+
     with st.sidebar:
         st.markdown('<div class="brand-mark">GeoFluid Lab</div>', unsafe_allow_html=True)
         st.markdown('<div class="brand-subtitle">Water Chemistry Workspace</div>', unsafe_allow_html=True)
         st.divider()
         st.markdown('<div class="nav-heading">Workspace</div>', unsafe_allow_html=True)
-        st.markdown('<div class="nav-item nav-item-active">Dashboard</div>', unsafe_allow_html=True)
-        st.markdown('<div class="nav-item">Data Sampel</div>', unsafe_allow_html=True)
-        st.markdown('<div class="nav-item">Geokimia</div>', unsafe_allow_html=True)
-        st.markdown('<div class="nav-item">Laporan</div>', unsafe_allow_html=True)
+        workspace_view = st.radio(
+            "Navigasi workspace",
+            workspace_items,
+            key="workspace_view",
+            label_visibility="collapsed",
+            width="stretch",
+        )
         st.divider()
         st.markdown('<div class="nav-heading">Jalankan Analisis</div>', unsafe_allow_html=True)
         uploaded_file = st.file_uploader("Unggah Excel atau CSV (opsional)", type=["xlsx", "xls", "csv"])
@@ -326,8 +393,9 @@ def main() -> None:
             st.error("Analisis tidak dapat dijalankan. Periksa format file dan kolom wajibnya.")
             st.exception(error)
 
-    analysis_df = _read_csv("kimia_air_analysis.csv")
-    if analysis_df is None:
+    kimia_air_df = _read_csv("kimia_air_analysis.csv")
+    ion_balance_df = _read_csv("ion_balance_analysis.csv")
+    if kimia_air_df is None:
         st.info("Belum ada hasil analisis. Tekan **Jalankan Analisis** untuk memakai data bawaan.")
         return
 
@@ -345,6 +413,35 @@ def main() -> None:
             unsafe_allow_html=True,
         )
 
+    datasets = {
+        "Kimia Air": {
+            "analysis_df": kimia_air_df,
+            "dataset_name": "Kimia Air Panas Bumi",
+            "quality_filename": "quality_report.csv",
+            "geo_filename": "geothermometer_results.csv",
+            "stats_filename": "summary_statistics.csv",
+            "figure_groups": KIMIA_AIR_FIGURE_GROUPS,
+        },
+    }
+    if ion_balance_df is not None:
+        datasets["Ion Balance"] = {
+            "analysis_df": ion_balance_df,
+            "dataset_name": "Tugas 1 Ion Balance",
+            "quality_filename": "ion_balance_quality_report.csv",
+            "geo_filename": "ion_balance_geothermometer_results.csv",
+            "stats_filename": "ion_balance_summary_statistics.csv",
+            "figure_groups": ION_BALANCE_FIGURE_GROUPS,
+        }
+
+    selected_dataset = st.radio(
+        "Dataset yang ditampilkan",
+        list(datasets),
+        horizontal=True,
+        label_visibility="collapsed",
+    )
+    dataset = datasets[selected_dataset]
+    analysis_df = dataset["analysis_df"]
+
     if search_term:
         search_mask = analysis_df[["sample_id", "sample_name"]].astype(str).apply(
             lambda column: column.str.contains(search_term, case=False, na=False)
@@ -354,28 +451,30 @@ def main() -> None:
             st.warning("Tidak ada sampel yang cocok dengan pencarian tersebut.")
             return
 
-    _show_metrics(analysis_df)
-    overview_tab, data_tab, charts_tab, export_tab = st.tabs(["Ringkasan", "Data", "Grafik", "Unduh Hasil"])
+    if workspace_view == "Dashboard":
+        _show_metrics(analysis_df)
+        _show_overview(
+            analysis_df,
+            dataset["dataset_name"],
+            dataset["quality_filename"],
+        )
 
-    with overview_tab:
-        _show_overview(analysis_df)
-
-    with data_tab:
+    elif workspace_view == "Data Sampel":
         st.subheader("Data Analisis Lengkap")
         st.dataframe(analysis_df, width="stretch", hide_index=True)
-        geo_df = _read_csv("geothermometer_results.csv")
+        geo_df = _read_csv(dataset["geo_filename"])
         if geo_df is not None:
             st.subheader("Hasil Geotermometer")
             st.dataframe(geo_df, width="stretch", hide_index=True)
-        stats_df = _read_csv("summary_statistics.csv")
+        stats_df = _read_csv(dataset["stats_filename"])
         if stats_df is not None:
             st.subheader("Statistik Deskriptif")
             st.dataframe(stats_df, width="stretch", hide_index=True)
 
-    with charts_tab:
-        _show_figures()
+    elif workspace_view == "Geokimia":
+        _show_figures(dataset["figure_groups"])
 
-    with export_tab:
+    elif workspace_view == "Laporan":
         st.subheader("File Hasil")
         for path in sorted(PROCESSED_DIR.glob("*.csv")):
             st.download_button(

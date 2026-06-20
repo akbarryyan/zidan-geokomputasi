@@ -795,7 +795,8 @@ def create_all_figures(
     df: pd.DataFrame,
     config: dict,
     geo_df: pd.DataFrame | None = None,
-    df_ib: pd.DataFrame | None = None,
+    ion_balance_df: pd.DataFrame | None = None,
+    ion_balance_geo_df: pd.DataFrame | None = None,
 ) -> None:
     """
     Buat dan simpan semua grafik analisis kimia air panas bumi.
@@ -809,9 +810,10 @@ def create_all_figures(
         Konfigurasi proyek (dari YAML).
     geo_df : pd.DataFrame, optional
         Hasil calculate_geothermometers() dari dataset utama.
-    df_ib : pd.DataFrame, optional
-        Dataset Ion Balance (21 sampel internasional) setelah
-        calculate_ion_balance(). Digunakan untuk plot diagram Powell kedua.
+    ion_balance_df : pd.DataFrame, optional
+        Dataset mentah Tugas 1 Ion Balance yang sudah dianalisis.
+    ion_balance_geo_df : pd.DataFrame, optional
+        Hasil geotermometer untuk dataset Ion Balance.
     """
     fig_dir = config.get("output", {}).get("figures_directory", "outputs/figures")
 
@@ -899,31 +901,38 @@ def create_all_figures(
         title_suffix="Kimia Air (10 sampel)",
     )
 
-    # 11–13. Diagram Powell untuk dataset Ion Balance (jika tersedia)
-    if df_ib is not None and len(df_ib) > 0:
+    # 11–13. Diagram geokimia dataset Ion Balance
+    if ion_balance_df is not None and len(ion_balance_df) > 0:
         plot_giggenbach_ternary(
-            df_ib,
-            output_path=os.path.join(fig_dir, "giggenbach_ternary_ib.png"),
+            ion_balance_df,
+            output_path=os.path.join(fig_dir, "giggenbach_ternary_ion_balance.png"),
             config=config,
         )
         plot_piper_diagram(
-            df_ib,
-            output_path=os.path.join(fig_dir, "piper_ib.png"),
+            ion_balance_df,
+            output_path=os.path.join(fig_dir, "piper_ion_balance.png"),
             config=config,
-            title_suffix="Ion Balance (21 sampel internasional)",
+            title_suffix="Tugas 1 Ion Balance",
         )
         plot_nakamg_ternary(
-            df_ib,
-            output_path=os.path.join(fig_dir, "nakamg_ternary_ib.png"),
+            ion_balance_df,
+            output_path=os.path.join(fig_dir, "nakamg_ternary_ion_balance.png"),
             config=config,
-            title_suffix="Ion Balance (21 sampel internasional)",
+            title_suffix="Tugas 1 Ion Balance",
         )
 
-    # 14. Estimasi suhu reservoir — semua 14 geotermometer
+    # 11. Estimasi suhu reservoir — semua 14 geotermometer
     if geo_df is not None and len(geo_df) > 0:
         plot_geothermometer_summary(
             geo_df,
             output_path=os.path.join(fig_dir, "geothermometer_summary.png"),
+            config=config,
+        )
+
+    if ion_balance_geo_df is not None and len(ion_balance_geo_df) > 0:
+        plot_geothermometer_summary(
+            ion_balance_geo_df,
+            output_path=os.path.join(fig_dir, "geothermometer_summary_ion_balance.png"),
             config=config,
         )
 

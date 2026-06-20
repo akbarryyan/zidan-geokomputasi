@@ -17,6 +17,7 @@ __pycache__/
 # Output files (generated, not committed)
 outputs/figures/*.png
 outputs/reports/*.md
+outputs/reports/*.xlsx
 data/processed/*.csv
 data/interim/*.csv
 

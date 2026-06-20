@@ -18,5 +18,8 @@ fi
 "$VENV_DIR/bin/pip" install -r "$ROOT_DIR/requirements.txt"
 
 echo
+if ! command -v libreoffice >/dev/null 2>&1 && ! command -v soffice >/dev/null 2>&1; then
+  echo "Catatan: instal LibreOffice untuk merender diagram Powell-Cumming."
+fi
 echo "Setup selesai."
 echo "Jalankan analisis dengan: bash scripts/run_pipeline.sh"

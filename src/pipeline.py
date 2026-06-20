@@ -12,7 +12,8 @@ from src.data_cleaner import clean_dataset, normalize_column_names
 from src.data_loader import load_dataset
 from src.data_validator import validate_dataset
 from src.geothermometry import calculate_geothermometers
-from src.ion_balance import calculate_ion_balance, load_ion_balance_dataset
+from src.ion_balance import calculate_ion_balance
+from src.powell_renderer import render_powell_charts
 from src.statistics import calculate_summary_statistics
 from src.visualization import create_all_figures
 
@@ -57,12 +58,35 @@ def _prepare_main_dataset(
     return clean_dataset(normalized, config)
 
 
+def _prepare_ion_balance_dataset(config: dict) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Load dan bersihkan dataset mentah Tugas 1 Ion Balance secara terpisah."""
+    input_cfg = config["ion_balance_input"]
+    raw = load_dataset(
+        input_cfg["file_path"],
+        sheet_name=input_cfg.get("sheet_name"),
+        skip_rows=input_cfg.get("skip_rows"),
+    )
+    normalized, mapping = normalize_column_names(raw)
+    logger.info("Kolom Ion Balance dinormalisasi: %s", mapping)
+
+    area = normalized["area"].fillna("IB").astype(str).str.strip() if "area" in normalized else "IB"
+    if isinstance(area, str):
+        normalized["sample_id"] = [f"{area}_{index + 1}" for index in range(len(normalized))]
+    else:
+        normalized["sample_id"] = [f"{label}_{index + 1}" for index, label in enumerate(area)]
+    if "sample_name" not in normalized.columns:
+        normalized["sample_name"] = normalized["sample_id"]
+
+    return clean_dataset(normalized, config)
+
+
 def _write_run_summary(
     path: str,
     cleaned_df: pd.DataFrame,
     validation: dict,
     quality_report: pd.DataFrame,
     output_files: list[str],
+    ion_balance_summary: dict | None = None,
 ) -> None:
     """Buat ringkasan singkat hasil run agar mudah dicek dari GitHub/terminal."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -73,10 +97,14 @@ def _write_run_summary(
         f"- Status validasi: {'valid' if validation['is_valid'] else 'tidak valid'}",
         f"- Jumlah warning validasi: {len(validation['warnings'])}",
         f"- Jumlah catatan cleaning: {len(quality_report)}",
-        "",
-        "## Output",
-        "",
     ]
+    if ion_balance_summary is not None:
+        lines.extend([
+            f"- Jumlah sampel Ion Balance: {ion_balance_summary['sample_count']}",
+            f"- Status validasi Ion Balance: {'valid' if ion_balance_summary['is_valid'] else 'tidak valid'}",
+            f"- Jumlah catatan cleaning Ion Balance: {ion_balance_summary['quality_count']}",
+        ])
+    lines.extend(["", "## Output", ""])
     lines.extend(f"- `{file_path}`" for file_path in output_files)
 
     with open(path, "w", encoding="utf-8") as f:
@@ -110,10 +138,14 @@ def run_pipeline(
     geo_df = calculate_geothermometers(analysis_df)
     stats_df = calculate_summary_statistics(analysis_df).reset_index()
 
-    ib_path = "data/raw/Tugas 1_Ion Balance.xlsx"
-    df_ib = None
-    if os.path.exists(ib_path):
-        df_ib = calculate_ion_balance(load_ion_balance_dataset(ib_path))
+    ib_cleaned_df, ib_quality_report = _prepare_ion_balance_dataset(config)
+    ib_validation = validate_dataset(ib_cleaned_df)
+    if not ib_validation["is_valid"]:
+        errors = "\n".join(ib_validation["errors"])
+        raise ValueError(f"Validasi dataset Ion Balance gagal:\n{errors}")
+    ib_analysis_df = calculate_ion_balance(classify_dataset(ib_cleaned_df, config))
+    ib_geo_df = calculate_geothermometers(ib_analysis_df)
+    ib_stats_df = calculate_summary_statistics(ib_analysis_df).reset_index()
 
     output_files = [
         os.path.join(interim_dir, "quality_report.csv"),
@@ -121,6 +153,11 @@ def run_pipeline(
         os.path.join(processed_dir, "kimia_air_analysis.csv"),
         os.path.join(processed_dir, "geothermometer_results.csv"),
         os.path.join(processed_dir, "summary_statistics.csv"),
+        os.path.join(interim_dir, "ion_balance_quality_report.csv"),
+        os.path.join(processed_dir, "ion_balance_cleaned.csv"),
+        os.path.join(processed_dir, "ion_balance_analysis.csv"),
+        os.path.join(processed_dir, "ion_balance_geothermometer_results.csv"),
+        os.path.join(processed_dir, "ion_balance_summary_statistics.csv"),
     ]
 
     _save_csv(quality_report, output_files[0])
@@ -128,16 +165,49 @@ def run_pipeline(
     _save_csv(analysis_df, output_files[2])
     _save_csv(geo_df, output_files[3])
     _save_csv(stats_df, output_files[4])
+    _save_csv(ib_quality_report, output_files[5])
+    _save_csv(ib_cleaned_df, output_files[6])
+    _save_csv(ib_analysis_df, output_files[7])
+    _save_csv(ib_geo_df, output_files[8])
+    _save_csv(ib_stats_df, output_files[9])
 
-    if df_ib is not None:
-        ib_output = os.path.join(processed_dir, "ion_balance_reference.csv")
-        _save_csv(df_ib, ib_output)
-        output_files.append(ib_output)
+    create_all_figures(
+        analysis_df,
+        config,
+        geo_df=geo_df,
+        ion_balance_df=ib_analysis_df,
+        ion_balance_geo_df=ib_geo_df,
+    )
 
-    create_all_figures(analysis_df, config, geo_df=geo_df, df_ib=df_ib)
+    powell_template = config["powell_reference"]["file_path"]
+    render_powell_charts(
+        analysis_df,
+        "kimia_air",
+        powell_template,
+        output_cfg["figures_directory"],
+        reports_dir,
+    )
+    render_powell_charts(
+        ib_analysis_df,
+        "ion_balance",
+        powell_template,
+        output_cfg["figures_directory"],
+        reports_dir,
+    )
 
     summary_path = os.path.join(reports_dir, "run_summary.md")
-    _write_run_summary(summary_path, analysis_df, validation, quality_report, output_files)
+    _write_run_summary(
+        summary_path,
+        analysis_df,
+        validation,
+        quality_report,
+        output_files,
+        ion_balance_summary={
+            "sample_count": len(ib_cleaned_df),
+            "is_valid": ib_validation["is_valid"],
+            "quality_count": len(ib_quality_report),
+        },
+    )
     logger.info("Pipeline selesai.")
 
 

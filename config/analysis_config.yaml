@@ -2,10 +2,19 @@ project:
   name: "Analisis dan Visualisasi Kimia Air Panas Bumi"
 
 input:
-  file_path: "data/raw/Kimia Air_Tugas 1.xlsx"
+  file_path: "docs/data-mentah/Kimia Air_Tugas 1.xlsx"
   sheet_name: "Air"
   # Baris 0 = judul, baris 2 = satuan — keduanya dilewati saat membaca
   skip_rows: [0, 2]
+
+ion_balance_input:
+  file_path: "docs/data-mentah/Tugas 1_Ion Balance.xlsx"
+  sheet_name: "IB"
+  # Baris 1 berisi satuan mg/kg.
+  skip_rows: [1]
+
+powell_reference:
+  file_path: "docs/data-referensi/Contoh_liquid_analysis_v3_powell-cumming_2010_stanfordgw.xlsx"
 
 output:
   processed_directory: "data/processed"

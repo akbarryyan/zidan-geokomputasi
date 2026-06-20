@@ -152,58 +152,6 @@ def calculate_ion_balance(df: pd.DataFrame) -> pd.DataFrame:
     return result
 
 
-# ── Loader khusus untuk Tugas 1_Ion Balance.xlsx ─────────────────────────────
-
-_IB_CONFIG = {
-    "cleaning": {
-        "missing_markers": ["", "-", "—", "NA", "N/A", "null", "None"],
-        "detection_limit_strategy": "half",
-        "remove_exact_duplicates": False,
-        "convert_negative_concentration_to_nan": True,
-    }
-}
-
-
-def load_ion_balance_dataset(file_path: str) -> pd.DataFrame:
-    """
-    Muat dan siapkan dataset Tugas 1_Ion Balance.xlsx.
-
-    Struktur file:
-        - Baris 0: header kolom
-        - Baris 1: satuan (mg/kg) — dilewati
-        - Baris 2–22: data 21 sampel internasional
-
-    Kolom tambahan yang dibuat:
-        sample_id — "{Area}_{nomor urut}" misal "WK_0"
-        sample_name — dari kolom "Unnamed: 1" / "sample_name"
-
-    Returns
-    -------
-    pd.DataFrame bersih dengan kolom standar (na, k, ca, mg, dll.)
-    """
-    raw = load_dataset(file_path, sheet_name="IB", skip_rows=[1])
-
-    df, mapping = normalize_column_names(raw)
-    logger.debug(f"Pemetaan kolom IB: {mapping}")
-
-    # Buat sample_id dari kolom "area" + indeks
-    if "area" in df.columns:
-        df["sample_id"] = [
-            f"{str(df.at[i, 'area']).strip()}_{j}"
-            for j, i in enumerate(df.index)
-        ]
-    else:
-        df["sample_id"] = [f"IB_{i}" for i in range(len(df))]
-
-    # Pastikan sample_name ada
-    if "sample_name" not in df.columns:
-        df["sample_name"] = df["sample_id"]
-
-    df_clean, _ = clean_dataset(df, _IB_CONFIG)
-    logger.info(f"Dataset Ion Balance dimuat: {len(df_clean)} sampel.")
-    return df_clean
-
-
 def load_kimia_air_dataset(file_path: str, config: dict) -> pd.DataFrame:
     """
     Muat dan siapkan dataset Kimia Air_Tugas 1.xlsx.
