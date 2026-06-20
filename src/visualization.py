@@ -17,11 +17,11 @@ _ION_HATCHES = {"Cl": "", "SO4": "//", "HCO3": ".."}
 
 
 def _get_sample_labels(df: pd.DataFrame) -> list[str]:
-    """Ambil label sumbu X: sample_name jika ada, fallback ke sample_id."""
-    if "sample_name" in df.columns:
-        return df["sample_name"].fillna(df.get("sample_id", range(len(df)))).tolist()
+    """Ambil label untuk plot: prioritas sample_id (kode singkat), fallback ke sample_name."""
     if "sample_id" in df.columns:
-        return df["sample_id"].tolist()
+        return df["sample_id"].fillna(df.get("sample_name", range(len(df)))).tolist()
+    if "sample_name" in df.columns:
+        return df["sample_name"].tolist()
     return [str(i) for i in range(len(df))]
 
 
@@ -238,13 +238,13 @@ def plot_scatter_with_labels(
 
     x_vals = pd.to_numeric(df[x_column], errors="coerce")
     y_vals = pd.to_numeric(df[y_column], errors="coerce")
-    labels = df[label_column] if label_column in df.columns else pd.Series(range(len(df)))
+    labels = df[label_column].tolist() if label_column in df.columns else [str(i) for i in range(len(df))]
 
     # Filter baris dengan nilai valid pada kedua sumbu
     mask = x_vals.notna() & y_vals.notna()
     x_plot = x_vals[mask]
     y_plot = y_vals[mask]
-    labels_plot = labels[mask]
+    labels_plot = [labels[i] for i, m in enumerate(mask) if m]
 
     if len(x_plot) == 0:
         logger.warning(f"Scatter plot '{output_path}' dilewati: tidak ada data valid.")
@@ -368,7 +368,7 @@ def plot_giggenbach_ternary(
         so4_pct = pd.Series(so4_list)
         hco3_pct = pd.Series(hco3_list)
 
-    labels = df["sample_id"] if "sample_id" in df.columns else pd.Series(range(len(df)))
+    labels = _get_sample_labels(df)
 
     for i in range(len(df)):
         cl_v, so4_v, hco3_v = cl_pct.iloc[i], so4_pct.iloc[i], hco3_pct.iloc[i]
@@ -381,7 +381,7 @@ def plot_giggenbach_ternary(
         ax.scatter(x, y, color="#5C7AEA", s=70, edgecolors="white",
                    linewidths=0.8, zorder=4)
         ax.annotate(
-            str(labels.iloc[i]),
+            str(labels[i]),
             (x, y),
             textcoords="offset points",
             xytext=(5, 4),
@@ -439,7 +439,7 @@ def plot_geothermometer_summary(
         logger.warning("Tidak ada kolom geotermometer untuk diplot.")
         return
 
-    sample_labels = geo_df["sample_id"].tolist() if "sample_id" in geo_df.columns else list(range(len(geo_df)))
+    sample_labels = _get_sample_labels(geo_df)
     n = len(sample_labels)
     y_pos = list(range(n))
 

@@ -6,7 +6,11 @@
       "Bash(python3 -m venv .venv)",
       "Bash(.venv/bin/pip install *)",
       "Bash(.venv/bin/python -c ' *)",
-      "Bash(rm -rf /home/akbarryan/Zidan-Projects/UAS/venv)"
+      "Bash(rm -rf /home/akbarryan/Zidan-Projects/UAS/venv)",
+      "Bash(python3 -c \"import pandas as pd; df = pd.read_csv\\('/home/akbarryan/Zidan-Projects/UAS/data/processed/kimia_air_cleaned.csv'\\); print\\(df[['sample_name','sample_id']].to_string\\(\\)\\)\")",
+      "Skill(run)",
+      "Skill(run:*)",
+      "Bash(python3 -m src.pipeline)"
     ],
     "additionalDirectories": [
       "/home/akbarryan/Zidan-Projects/UAS/venv"

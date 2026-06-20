@@ -4,7 +4,10 @@ project:
 input:
   file_path: "docs/data-mentah/Kimia Air_Tugas 1.xlsx"
   sheet_name: "Air"
-  # Baris 0 = judul, baris 2 = satuan — keduanya dilewati saat membaca
+  # Baris 0 = judul "Hasil Analisa Kimia Air" → dilewati
+  # Baris 1 = header dengan label kolom (Nama, ID, T(°C), pH, TDS, Li, Na, K, Ca, Mg, SiO2, B, Cl, SO4, HCO3)
+  # Baris 2 = baris unit (Nama, ID, T(°C), pH, TDS, mg/kg, mg/kg, ...) → dilewati
+  # Baris 3+ = data sampel (Semar Kawah, SK, 55, 2.32, ...)
   skip_rows: [0, 2]
 
 ion_balance_input:
