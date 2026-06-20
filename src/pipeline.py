@@ -34,17 +34,18 @@ def _prepare_main_dataset(
     config: dict,
     input_path: str | None = None,
     sheet_name: str | None = None,
+    skip_rows: list[int] | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Load, normalisasi kolom, dan bersihkan dataset utama Kimia Air."""
     input_cfg = config.get("input", {})
     file_path = input_path or input_cfg.get("file_path")
     target_sheet = sheet_name if sheet_name is not None else input_cfg.get("sheet_name")
-    skip_rows = input_cfg.get("skip_rows")
+    target_skip_rows = skip_rows if skip_rows is not None else input_cfg.get("skip_rows")
 
     if not file_path:
         raise ValueError("Path input belum diatur. Isi config input.file_path atau pakai --input.")
 
-    raw = load_dataset(file_path, sheet_name=target_sheet, skip_rows=skip_rows)
+    raw = load_dataset(file_path, sheet_name=target_sheet, skip_rows=target_skip_rows)
     normalized, mapping = normalize_column_names(raw)
     logger.info("Kolom dinormalisasi: %s", mapping)
 
@@ -86,6 +87,7 @@ def _write_run_summary(
 def run_pipeline(
     input_path: str | None = None,
     sheet_name: str | None = None,
+    skip_rows: list[int] | None = None,
     config_path: str = "config/analysis_config.yaml",
 ) -> None:
     """Jalankan seluruh pipeline dari baca data hingga simpan output."""
@@ -97,7 +99,7 @@ def run_pipeline(
     interim_dir = output_cfg["interim_directory"]
     reports_dir = output_cfg["reports_directory"]
 
-    cleaned_df, quality_report = _prepare_main_dataset(config, input_path, sheet_name)
+    cleaned_df, quality_report = _prepare_main_dataset(config, input_path, sheet_name, skip_rows)
     validation = validate_dataset(cleaned_df)
     if not validation["is_valid"]:
         errors = "\n".join(validation["errors"])
@@ -144,11 +146,17 @@ def main() -> None:
     parser.add_argument("--config", default="config/analysis_config.yaml", help="Path file konfigurasi YAML")
     parser.add_argument("--input", type=str, help="Path file Excel atau CSV")
     parser.add_argument("--sheet-name", type=str, help="Nama sheet Excel")
+    parser.add_argument(
+        "--skip-rows",
+        type=str,
+        help="Nomor baris 0-based yang dilewati, dipisahkan koma. Contoh: 0,2",
+    )
     args = parser.parse_args()
 
     run_pipeline(
         input_path=args.input,
         sheet_name=args.sheet_name,
+        skip_rows=[int(row) for row in args.skip_rows.split(",")] if args.skip_rows else None,
         config_path=args.config,
     )
 
