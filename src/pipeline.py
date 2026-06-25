@@ -58,13 +58,21 @@ def _prepare_main_dataset(
     return clean_dataset(normalized, config)
 
 
-def _prepare_ion_balance_dataset(config: dict) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Load dan bersihkan dataset mentah Tugas 1 Ion Balance secara terpisah."""
+def _prepare_ion_balance_dataset(
+    config: dict,
+    input_path: str | None = None,
+    sheet_name: str | None = None,
+    skip_rows: list[int] | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Load dan bersihkan dataset mentah Ion Balance secara terpisah."""
     input_cfg = config["ion_balance_input"]
+    file_path = input_path or input_cfg.get("file_path")
+    target_sheet = sheet_name if sheet_name is not None else input_cfg.get("sheet_name")
+    target_skip_rows = skip_rows if skip_rows is not None else input_cfg.get("skip_rows")
     raw = load_dataset(
-        input_cfg["file_path"],
-        sheet_name=input_cfg.get("sheet_name"),
-        skip_rows=input_cfg.get("skip_rows"),
+        file_path,
+        sheet_name=target_sheet,
+        skip_rows=target_skip_rows,
     )
     normalized, mapping = normalize_column_names(raw)
     logger.info("Kolom Ion Balance dinormalisasi: %s", mapping)
@@ -116,6 +124,9 @@ def run_pipeline(
     input_path: str | None = None,
     sheet_name: str | None = None,
     skip_rows: list[int] | None = None,
+    ib_input_path: str | None = None,
+    ib_sheet_name: str | None = None,
+    ib_skip_rows: list[int] | None = None,
     config_path: str = "config/analysis_config.yaml",
 ) -> None:
     """Jalankan seluruh pipeline dari baca data hingga simpan output."""
@@ -138,7 +149,9 @@ def run_pipeline(
     geo_df = calculate_geothermometers(analysis_df)
     stats_df = calculate_summary_statistics(analysis_df).reset_index()
 
-    ib_cleaned_df, ib_quality_report = _prepare_ion_balance_dataset(config)
+    ib_cleaned_df, ib_quality_report = _prepare_ion_balance_dataset(
+        config, ib_input_path, ib_sheet_name, ib_skip_rows
+    )
     ib_validation = validate_dataset(ib_cleaned_df)
     if not ib_validation["is_valid"]:
         errors = "\n".join(ib_validation["errors"])

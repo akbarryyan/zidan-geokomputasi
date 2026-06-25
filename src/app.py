@@ -77,25 +77,39 @@ def _parse_skip_rows(value: str) -> list[int]:
     return [int(row.strip()) for row in value.split(",") if row.strip()]
 
 
+def _save_upload(uploaded_file: st.runtime.uploaded_file_manager.UploadedFile) -> str:
+    """Simpan file yang diupload ke temp file, kembalikan path-nya."""
+    suffix = Path(uploaded_file.name).suffix
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp.write(uploaded_file.getvalue())
+        return tmp.name
+
+
 def _run_analysis(
     uploaded_file: st.runtime.uploaded_file_manager.UploadedFile | None,
     sheet_name: str | None,
     skip_rows: list[int] | None,
+    uploaded_ib_file: st.runtime.uploaded_file_manager.UploadedFile | None,
+    ib_sheet_name: str | None,
+    ib_skip_rows: list[int] | None,
 ) -> None:
     """Jalankan pipeline memakai data bawaan atau file sementara hasil unggahan."""
-    if uploaded_file is None:
-        run_pipeline()
-        return
-
-    suffix = Path(uploaded_file.name).suffix
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as temp_file:
-        temp_file.write(uploaded_file.getvalue())
-        temp_path = temp_file.name
-
+    main_path = _save_upload(uploaded_file) if uploaded_file is not None else None
+    ib_path = _save_upload(uploaded_ib_file) if uploaded_ib_file is not None else None
     try:
-        run_pipeline(input_path=temp_path, sheet_name=sheet_name, skip_rows=skip_rows)
+        run_pipeline(
+            input_path=main_path,
+            sheet_name=sheet_name,
+            skip_rows=skip_rows,
+            ib_input_path=ib_path,
+            ib_sheet_name=ib_sheet_name,
+            ib_skip_rows=ib_skip_rows,
+        )
     finally:
-        Path(temp_path).unlink(missing_ok=True)
+        if main_path:
+            Path(main_path).unlink(missing_ok=True)
+        if ib_path:
+            Path(ib_path).unlink(missing_ok=True)
 
 
 def _show_metrics(analysis_df: pd.DataFrame) -> None:
@@ -217,11 +231,11 @@ def main() -> None:
         }
         [data-testid="stMainBlockContainer"], .stMain .block-container {
             max-width: 1450px;
-            padding: 2rem 3rem 3rem !important;
+            padding: 4.5rem 3rem 3rem !important;
         }
         @media (max-width: 900px) {
             [data-testid="stMainBlockContainer"], .stMain .block-container {
-                padding: 1.25rem 1rem 2rem !important;
+                padding: 4.5rem 1rem 2rem !important;
             }
         }
         h1, h2, h3, p, label, [data-testid="stCaptionContainer"] {
@@ -348,6 +362,7 @@ def main() -> None:
         }
         .stTabs [data-baseweb="tab"] { color: #48635e; }
         .stTabs [aria-selected="true"] { color: #b64b32 !important; }
+        [data-testid="stBaseButton-primary"] p { color: #ffffff !important; }
         </style>
         """,
         unsafe_allow_html=True,
@@ -368,26 +383,51 @@ def main() -> None:
         )
         st.divider()
         st.markdown('<div class="nav-heading">Jalankan Analisis</div>', unsafe_allow_html=True)
-        uploaded_file = st.file_uploader("Unggah Excel atau CSV (opsional)", type=["xlsx", "xls", "csv"])
+
+        # --- Upload Kimia Air ---
+        st.caption("Data Kimia Air")
+        uploaded_file = st.file_uploader(
+            "Kimia Air (opsional)", type=["xlsx", "xls", "csv"], key="upload_main",
+        )
         sheet_name = None
         if uploaded_file and uploaded_file.name.lower().endswith((".xlsx", ".xls")):
             sheets = pd.ExcelFile(BytesIO(uploaded_file.getvalue()), engine="openpyxl").sheet_names
-            sheet_name = st.selectbox("Sheet Excel", sheets)
-
-        default_skip_rows = "0, 2" if uploaded_file is None else ""
+            sheet_name = st.selectbox("Sheet", sheets, key="sheet_main")
         skip_rows_text = st.text_input(
-            "Lewati baris (indeks 0-based, pisahkan koma)",
-            value=default_skip_rows,
-            help="Untuk data bawaan, baris 0 dan 2 berisi judul/satuan. Kosongkan untuk file dengan header pada baris pertama.",
+            "Lewati baris",
+            value="1" if sheet_name == "IB" else "0, 2",
+            key="skip_main",
+            help="Indeks baris 0-based yang dilewati, pisahkan koma. File Tugas 1 Air: '0, 2'",
         )
+
+        # --- Upload Ion Balance ---
+        st.caption("Data Ion Balance")
+        uploaded_ib_file = st.file_uploader(
+            "Ion Balance (opsional)", type=["xlsx", "xls", "csv"], key="upload_ib",
+        )
+        ib_sheet_name = None
+        if uploaded_ib_file and uploaded_ib_file.name.lower().endswith((".xlsx", ".xls")):
+            ib_sheets = pd.ExcelFile(BytesIO(uploaded_ib_file.getvalue()), engine="openpyxl").sheet_names
+            ib_sheet_name = st.selectbox("Sheet IB", ib_sheets, key="sheet_ib")
+        ib_skip_rows_text = st.text_input(
+            "Lewati baris IB",
+            value="1",
+            key="skip_ib",
+            help="Indeks baris 0-based yang dilewati. File Tugas 1 Ion Balance: '1'",
+        )
+
         run_clicked = st.button("Jalankan Analisis", type="primary", width="stretch")
         st.caption("Tanpa unggahan, aplikasi memakai data bawaan proyek.")
 
     if run_clicked:
         try:
             skip_rows = _parse_skip_rows(skip_rows_text)
+            ib_skip_rows = _parse_skip_rows(ib_skip_rows_text)
             with st.spinner("Memproses data dan membuat grafik..."):
-                _run_analysis(uploaded_file, sheet_name, skip_rows)
+                _run_analysis(
+                    uploaded_file, sheet_name, skip_rows,
+                    uploaded_ib_file, ib_sheet_name, ib_skip_rows,
+                )
             st.success("Analisis selesai. Semua hasil sudah diperbarui.")
         except Exception as error:
             st.error("Analisis tidak dapat dijalankan. Periksa format file dan kolom wajibnya.")
@@ -421,6 +461,15 @@ def main() -> None:
             "geo_filename": "geothermometer_results.csv",
             "stats_filename": "summary_statistics.csv",
             "figure_groups": KIMIA_AIR_FIGURE_GROUPS,
+            "report_files": [
+                (PROCESSED_DIR / "kimia_air_analysis.csv", "Hasil Analisis Kimia Air", "text/csv"),
+                (PROCESSED_DIR / "kimia_air_cleaned.csv", "Data Kimia Air (cleaned)", "text/csv"),
+                (PROCESSED_DIR / "geothermometer_results.csv", "Hasil Geotermometer", "text/csv"),
+                (PROCESSED_DIR / "summary_statistics.csv", "Statistik Deskriptif", "text/csv"),
+                (PROCESSED_DIR / "quality_report.csv", "Laporan Kualitas Data", "text/csv"),
+                (REPORTS_DIR / "powell_kimia_air_input.xlsx", "Workbook Powell-Cumming", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+                (REPORTS_DIR / "run_summary.md", "Ringkasan Pipeline", "text/markdown"),
+            ],
         },
     }
     if ion_balance_df is not None:
@@ -431,6 +480,15 @@ def main() -> None:
             "geo_filename": "ion_balance_geothermometer_results.csv",
             "stats_filename": "ion_balance_summary_statistics.csv",
             "figure_groups": ION_BALANCE_FIGURE_GROUPS,
+            "report_files": [
+                (PROCESSED_DIR / "ion_balance_analysis.csv", "Hasil Analisis Ion Balance", "text/csv"),
+                (PROCESSED_DIR / "ion_balance_cleaned.csv", "Data Ion Balance (cleaned)", "text/csv"),
+                (PROCESSED_DIR / "ion_balance_geothermometer_results.csv", "Hasil Geotermometer", "text/csv"),
+                (PROCESSED_DIR / "ion_balance_summary_statistics.csv", "Statistik Deskriptif", "text/csv"),
+                (PROCESSED_DIR / "ion_balance_quality_report.csv", "Laporan Kualitas Data", "text/csv"),
+                (REPORTS_DIR / "powell_ion_balance_input.xlsx", "Workbook Powell-Cumming", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+                (REPORTS_DIR / "run_summary.md", "Ringkasan Pipeline", "text/markdown"),
+            ],
         }
 
     selected_dataset = st.radio(
@@ -453,6 +511,7 @@ def main() -> None:
 
     if workspace_view == "Dashboard":
         _show_metrics(analysis_df)
+        st.markdown("<div style='margin-top:1.5rem'></div>", unsafe_allow_html=True)
         _show_overview(
             analysis_df,
             dataset["dataset_name"],
@@ -475,22 +534,16 @@ def main() -> None:
         _show_figures(dataset["figure_groups"])
 
     elif workspace_view == "Laporan":
-        st.subheader("File Hasil")
-        for path in sorted(PROCESSED_DIR.glob("*.csv")):
-            st.download_button(
-                label=f"Unduh {path.name}",
-                data=path.read_bytes(),
-                file_name=path.name,
-                mime="text/csv",
-            )
-        summary_path = REPORTS_DIR / "run_summary.md"
-        if summary_path.exists():
-            st.download_button(
-                label="Unduh ringkasan analisis",
-                data=summary_path.read_bytes(),
-                file_name=summary_path.name,
-                mime="text/markdown",
-            )
+        st.subheader(f"File Hasil — {dataset['dataset_name']}")
+        for path, label, mime in dataset["report_files"]:
+            if path.exists():
+                st.download_button(
+                    label=f"Unduh {label}",
+                    data=path.read_bytes(),
+                    file_name=path.name,
+                    mime=mime,
+                    key=f"dl_{path.name}",
+                )
 
 
 if __name__ == "__main__":
